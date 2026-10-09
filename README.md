@@ -1,10 +1,10 @@
-# 📊 Face ID Tizimining Resurs Sarfi va Masshtablash (Scalability) Hisoboti
+# Face ID Tizimining Resurs Sarfi va Masshtablash (Scalability) Hisoboti
 
 Ushbu hisobot Face ID arxitekturasining **Davlat va Yirik Korporativ** miqyosda qanchalik yengil va optimizatsiya qilinganligini aniq raqamlar bilan ko'rsatib beradi. Tizim doimiy rasmlarni emas, balki tarmoqni tejovchi sun'iy intellekt vektorlarini (embeddings) ishlatadi.
 
 ---
 
-## 1. 📂 Ma'lumotlar Bazasi (Disk xotira) Sarfi
+## 1. Ma'lumotlar Bazasi (Disk xotira) Sarfi
 
 Bitta xodim bazaga kiritilganda uning yuzi rasm sifatida emas, balki 512 o'lchamli raqamlar to'plami (vektor) shaklida saqlanadi. 
 
@@ -25,7 +25,7 @@ Bitta xodim bazaga kiritilganda uning yuzi rasm sifatida emas, balki 512 o'lcham
 
 ---
 
-## 2. 🧠 Operativ Xotira (RAM) Sarfi
+## 2. Operativ Xotira (RAM) Sarfi
 
 Dastur hech qanday yuklamasiz, shunchaki ishlab turganda (Idle mode) o'ziga qancha xotira ushlab turadi?
 * **Backend + AI Model (InsightFace `buffalo_sc`):** ~200 MB
@@ -35,42 +35,42 @@ Dastur hech qanday yuklamasiz, shunchaki ishlab turganda (Idle mode) o'ziga qanc
 
 ---
 
-## 3. ⚡ Bir vaqtda (Parallel) Qayta Ishlash Tezligi va Yuklama
+## 3. Bir vaqtda (Parallel) Qayta Ishlash Tezligi va Yuklama
 
 Ushbu hisoblash tizimga ulangan **1 ta Nvidia GPU (videokarta)** va **pgvector HNSW indeksi** quvvatiga asoslangan. E'tibor bering, bular 1 kun ichida emas, aynan **Bitta Soniyada** kelib tushadigan so'rovlar (Concurrency) hisoblanadi.
 
-### 👥 1 ta odam (Bir soniyada 1 kishi kirganda)
+### 1 ta odam (Bir soniyada 1 kishi kirganda)
 * **Qidiruv tezligi (Bazada topish):** 1-2 millisekund.
 * **AI Vektorlash vaqti (GPU):** 10 millisekund.
 * **Server RAM dagi sakrash:** +0.03 MB (Faqatgina rasm bufferi).
 * **Natija:** Inson ko'zi ilg'amas tezlikda (0.01 soniya) tasdiqlanadi. 
 
-### 👥 1,000 ta odam (Aynan 1 sekund ichida parallel kirganda)
+### 1,000 ta odam (Aynan 1 sekund ichida parallel kirganda)
 * **Holat:** Tarmoqqa bir vaqtda 1000 ta request (har biri o'rtacha 30KB dan rasmlar, jami 30 MB ma'lumot) kelib tushadi.
 * **Qayta ishlash:** GPU ularni bittadan o'qimaydi, balki 64/128 tadan guruhlarga bo'lib (Batching) parallel o'qiydi.
 * **Qidiruv tezligi:** `pgvector` orqali guruhli izlash o'rtacha 20-30 ms vaqt oladi.
 * **Server RAM dagi sakrash:** Barcha kelgan so'rovlarni ushlab turish uchun vaqtinchalik **+50 MB** qo'shimcha xotira sarflaydi.
 * **Natija:** Barcha 1000 kishi maksimal **0.5 - 0.8 soniya** ichida tasdiqlanadi. Server osonlikcha bardosh beradi.
 
-### 👥 10,000 ta odam (Aynan 1 sekund ichida)
+### 10,000 ta odam (Aynan 1 sekund ichida)
 * **Holat:** Tizimga bir lahzada jami 300 MB trafik (HTTP so'rovlar) yog'iladi.
 * **Server RAM dagi sakrash:** Request'larni navbatda saqlash uchun **+400-500 MB** vaqtinchalik RAM kerak bo'ladi.
 * **Natija:** GPU navbatdagi rasmlarni ketma-ket tahlil qiladi. Barcha xodimlarni o'tkazib yuborish jami bo'lib o'rtacha **4 - 7 soniya** vaqt oladi. Server qulab tushmaydi, balki so'rovlarni xavfsiz holda biroz kutish bilan javob qaytaradi.
 
-### 👥 1,000,000 ta odam (Aynan 1 sekund ichida hujum yoki ulkan oqim)
+### 1,000,000 ta odam (Aynan 1 sekund ichida hujum yoki ulkan oqim)
 * **Holat:** Bu DdoS (hujum) darajasiga kiradi. Bir soniyada 1 millionta odam surat jo'natsa, server tarmog'iga 30 Gigabayt/sekund yuklama tushadi.
 * **Natija:** Yagona server buning RAM yoki Tarmoq porti (Network Bandwidth) sig'imi bo'yicha eplay olmaydi. Server "Network Timeout" yoki "Out of Memory" xatoligi bilan uzilib qolishi mumkin.
-* **Moliya Vazirligi yoki Yirik korxonalar uchun yechim:** 1 millionta oqimga tushib qolmaslik uchun Nginx / HAProxy / Kubernetes orqali "Load Balancer" (yuklamani taqsimlovchi) quriladi. Tizim avtomatik tarzda nusxalanib, parallel 10 ta GPU serverlariga bo'lib tashlanadi (Microservices arxitekturasi).
+* **Yirik korxonalar uchun yechim:** 1 millionta oqimga tushib qolmaslik uchun Nginx / HAProxy / Kubernetes orqali "Load Balancer" (yuklamani taqsimlovchi) quriladi. Tizim avtomatik tarzda nusxalanib, parallel 10 ta GPU serverlariga bo'lib tashlanadi (Microservices arxitekturasi).
 
 ---
 
-### 🔥 YAKUNIY XULOSA:
+### YAKUNIY XULOSA:
 Ushbu yozilgan kod (Arxitektura) barcha ortiqcha yuklamalarni (videoni serverda uzatish kabi) foydalanuvchi qurilmasiga yuklab yuborgan. Shu sababli:
 * Tizim doimiy bo'sh holatda atigi **~250 MB** RAM yeydi.
 * 1 Million xodim bazadan atigi **2 GB** disk xotira oladi.
 * 1 ta GPU (videokarta) orqali soniyasiga minglab tranzaksiyalarni qotishlarsiz, **1 soniyadan kamroq** vaqtda bemalol hal qiladi.
 * Bu 100% "Enterprise-Ready" va Resurs-Tejamkor arxitekturadir.
-# 🚀 Tizim Texnologiyalari va Arxitekturasi (Tech Stack Report)
+# Tizim Texnologiyalari va Arxitekturasi (Tech Stack Report)
 
 Ushbu Face ID identifikatsiya tizimi zamonaviy mikroxizmatlar (microservices) arxitekturasi asosida, eng tezkor, xavfsiz va davlat standartlariga mos keluvchi ilg'or texnologiyalar to'plamidan foydalanib qurilgan. Tizim **"Client-Side Processing"** (mijoz tomonida ishlash) va **"Vector Similarity Search"** (vektor qidiruvi) kabi innovatsion yondashuvlarni o'zida jamlagan.
 
@@ -78,7 +78,7 @@ Quyida loyihada qo'llanilgan texnologiyalar va ularning vazifalari professional 
 
 ---
 
-## 🎨 1. Frontend (Foydalanuvchi interfeysi va mijoz qismi)
+## 1. Frontend (Foydalanuvchi interfeysi va mijoz qismi)
 
 Frontend nafaqat ma'lumotni ko'rsatish, balki og'ir video-trafikni serverga yubormasdan, dastlabki yuz tahlilini (Face Tracking) bevosita brauzerda amalga oshirish uchun optimizatsiya qilingan.
 
@@ -89,7 +89,7 @@ Frontend nafaqat ma'lumotni ko'rsatish, balki og'ir video-trafikni serverga yubo
 
 ---
 
-## ⚙️ 2. Backend (Mantiqiy yadro va API)
+## 2. Backend (Mantiqiy yadro va API)
 
 Server qismi bloklanishlarsiz (non-blocking) va o'ta yuqori tezlikda (High-Concurrency) ishlashiga moslashtirilgan.
 
@@ -100,7 +100,7 @@ Server qismi bloklanishlarsiz (non-blocking) va o'ta yuqori tezlikda (High-Concu
 
 ---
 
-## 🧠 3. Sun'iy Intellekt va Yuzni Tanish (Deep Learning)
+##  3. Sun'iy Intellekt va Yuzni Tanish (Deep Learning)
 
 Yuzlarni solishtirish piksel asosida emas, balki chuqur neyron tarmoqlar (Deep Neural Networks) asosida yuz ifodasi, suyak strukturasi kabi o'zgarmas biometrik xususiyatlarga tayanadi.
 
@@ -109,7 +109,7 @@ Yuzlarni solishtirish piksel asosida emas, balki chuqur neyron tarmoqlar (Deep N
 
 ---
 
-## 🗄 4. Ma'lumotlar Bazasi va Vektor Qidiruv (Database System)
+## 4. Ma'lumotlar Bazasi va Vektor Qidiruv (Database System)
 
 Tizim relyatsion (matnli) va metrik (vektor) ma'lumotlarni yagona joyda ulkan tezlikda qidirish uchun moslashtirilgan.
 
@@ -119,7 +119,7 @@ Tizim relyatsion (matnli) va metrik (vektor) ma'lumotlarni yagona joyda ulkan te
 
 ---
 
-## 🏗 5. DevOps va Infratuzilma (Deployment)
+## 5. DevOps va Infratuzilma (Deployment)
 
 Tizim istalgan muhitda (Windows, Linux, MacOS, Cloud) o'rnatish va miqyoslashga tayyor qilib qadoqlangan.
 
