@@ -55,5 +55,3 @@ Bitta xodim bazaga kiritilganda uning yuzi rasm emas, raqamlar to'plami sifatida
 * **Kichik Oqimlar (oddiy CPU da):** 1 soniya ichida 10-15 xodim parallel identifikatsiyadan o'ta oladi.
 * **Katta Oqimlar (Nvidia GPU Batch Processing da):** 1 soniya ichida kelib tushgan **1,000 ta parallel so'rov** guruhlarga bo'linib, to'liq **0.5 - 1 soniya** oralig'ida qayta ishlanadi va server qulashining oldi olinadi.
 
----
-*Ushbu loyiha maxfiylik hamda zamonaviy dasturiy ta'minot arxitekturasi tamoyillari (Microservices, Edge AI, Vector Databases) asosida ishlab chiqilgan.*
