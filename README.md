@@ -7,7 +7,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-informational.svg)
 
 ## Loyiha Tavsifi (Project Overview)
-**Enterprise Face ID System** — bu davlat tashkilotlari, yirik korporatsiyalar va yuqori xavfsizlik talab etiladigan ob'ektlar uchun mo'ljallangan markazlashtirilgan biometrik identifikatsiya tizimi. Tizim an'anaviy yuzni aniqlash arxitekturalaridagi tarmoq va server yuklamasini bartaraf etuvchi innovatsion **Edge-to-Cloud** arxitekturasiga asoslangan.
+**Enterprise Face ID System** — Tizim an'anaviy yuzni aniqlash arxitekturalaridagi tarmoq va server yuklamasini bartaraf etuvchi innovatsion **Edge-to-Cloud** arxitekturasiga asoslangan.
 
 Ushbu yechim yuz biometrikasini piksellar asosida emas, balki chuqur neyron tarmoqlar (InsightFace) orqali yasalgan **512-o'lchamli vektorlar** asosida saqlaydi va qidiradi.
 
@@ -43,9 +43,6 @@ docker-compose up -d --build
 - **Frontend (Kiyosk interfeysi):** `http://localhost:80` yoki serverning asosiy IP manzili.
 - **Backend API (Swagger Docs):** `http://localhost:8000/docs`
 
-## Masshtablash va Resurs Sarfi (Scalability & Resource Usage)
-
-Tizim davlat standartlaridagi yirik oqimlar (High-Load) uchun optimallashtirilgan:
 
 ### 1. Ma'lumotlar Bazasi (Disk xotira) Sarfi
 Bitta xodim bazaga kiritilganda uning yuzi rasm emas, raqamlar to'plami sifatida saqlanadi.
