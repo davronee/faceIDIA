@@ -1,0 +1,288 @@
+openapi: 3.0.3
+info:
+  title: FaceID B2B Biometric Verification REST API
+  version: 1.0.0
+  description: |
+    ### FaceID Tashqi B2B Biometrik Integratsiya Shlyuzi
+    Ushbu API orqali tashqi hamkorlar (Banklar, To'lov tizimlari, Korxonalar) fuqaroning pasport ma'lumotlari (`passport`, `birth_date`) va yuborilgan jonli fotosurat (`photo` Base64) asosida shaxsni davlat GCP pasport bazasidagi rasmiy surati bilan 1:1 solishtirib, shaxsning haqiqiyligini tekshiradi.
+
+    ---
+    ### Ishlash Tartibi (2 Qadam):
+    1. **Token Olish (`POST /api/v1/auth/token`)**:
+       Admin tomonidan berilgan `client_id` va `client_secret` bilan HTTP Basic Auth orqali 24 soatlik Bearer Token olinadi.
+    2. **Biometrik Tekshirish (`POST /api/v1/external/verify`)**:
+       Olingan token bilan `passport`, `birth_date` va `photo` (Base64) yuboriladi. Agar yuz pasport egasiga mos kelsa, `is_match: true` qaytariladi.
+
+servers:
+  - url: http://localhost:8080
+    description: Lokal server (FrankenPHP)
+  - url: http://192.168.80.136:8080
+    description: Lokal Wi-Fi / LAN tarmog'i
+  - url: https://api.faceidia.uz
+    description: Production server (HTTPS)
+
+security:
+  - BearerAuth: []
+  - {}
+
+tags:
+  - name: 1. Autentifikatsiya
+    description: Basic Auth orqali 24 soatlik Bearer Token olish
+  - name: 2. Biometrik Verifikatsiya
+    description: Pasport ma'lumotlari va jonli fotosuratni (Base64) 1:1 taqqoslash
+
+paths:
+  # ============================================================================
+  # 1. Autentifikatsiya
+  # ============================================================================
+  /api/v1/auth/token:
+    post:
+      operationId: getAuthToken
+      summary: 1-qadam - Bearer Access Token olish
+      description: |
+        Admin panel tomonidan taqdim etilgan `client_id` va `client_secret` orqali 24 soatlik Bearer Token olinadi.
+        
+        **Avtorizatsiya usullari:**
+        1. **HTTP Basic Auth** (Tavsiya etiladi): `Authorization: Basic base64(client_id:client_secret)`
+        2. **JSON Body**: `{"client_id": "...", "client_secret": "..."}`
+      tags:
+        - 1. Autentifikatsiya
+      security:
+        - BasicAuth: []
+        - {}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                  example: "clnt_demo_b2b_client_2026"
+                  description: "Admin panel tomonidan berilgan Client ID"
+                client_secret:
+                  type: string
+                  example: "sec_demo_b2b_secret_key_2026"
+                  description: "Admin panel tomonidan berilgan maxfiy Client Secret"
+      responses:
+        '200':
+          description: "Muvaffaqiyatli - Bearer token qaytarildi."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: "Client ID yoki Client Secret ko'rsatilmagan."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '401':
+          description: "Client ID yoki Client Secret noto'g'ri."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '403':
+          description: "Mijoz bloklangan, muddati o'tgan yoki IP ruxsat etilmagan."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  # ============================================================================
+  # 2. Biometrik Verifikatsiya
+  # ============================================================================
+  /api/v1/external/verify:
+    post:
+      operationId: verifyPassportWithLiveFace
+      summary: 2-qadam - Pasport va Jonli Yuzni 1:1 Taqqoslash
+      description: |
+        Fuqaroning pasport seriyasi (`passport`), tug'ilgan sanasi (`birth_date`) va kameradan olingan jonli fotosurati (`photo` Base64) qabul qilinadi.
+
+        Tizim davlat GCP bazasidan ushbu pasport egasining rasmiy fotosuratini oladi va yuborilgan jonli fotosurat bilan 1:1 (ArcFace 512-d + Anti-spoofing) solishtiradi.
+
+        * **Agar shaxs tasdiqlansa**: `is_match: true` va fuqaroning tasdiqlangan ma'lumotlari qaytadi.
+        * **Agar yuz mos kelmasa**: `is_match: false` va xatolik sababi qaytadi.
+      tags:
+        - 2. Biometrik Verifikatsiya
+      security:
+        - BearerAuth: []
+        - ExternalMasterKeyAuth: []
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: |
+            **Bearer Access Token**. Masalan: `Bearer 151|TzYR2ZTebj9D8...`
+            *(Eslatma: Agar yuqoridagi yashil **Authorize 🔓** tugmasi orqali token kiritilgan bo'lsa, bu maydonni to'ldirish shart emas).*
+          schema:
+            type: string
+            example: "Bearer 151|TzYR2ZTebj9D8JKikPOZXfMU3RMiX3biNpR8gp41adc17c41"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - passport
+                - birth_date
+                - photo
+              properties:
+                passport:
+                  type: string
+                  example: "AA1234567"
+                  description: "Pasport yoki ID-karta seriya va raqami (2 ta harf + 7 ta raqam)."
+                birth_date:
+                  type: string
+                  format: date
+                  example: "1995-05-15"
+                  description: "Fuqaroning tug'ilgan sanasi (Format: YYYY-MM-DD)."
+                photo:
+                  type: string
+                  description: "Kameradan olingan jonli fotosuratning JPEG/PNG Base64 satri (maks. 10MB)."
+                  example: "/9j/4AAQSkZJRgABAQEASABIAAD..."
+      responses:
+        '200':
+          description: "Biometrik solishtirish natijasi (Mos kelganda yoki kelmaganda)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResponse'
+        '400':
+          description: "Biometrik xatolik yoki Base64 format noto'g'ri."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '401':
+          description: "Bearer Token yaroqsiz yoki muddati tugagan."
+        '404':
+          description: "Pasport topilmadi yoki bazada pasport rasmi mavjud emas."
+        '422':
+          description: "Validatsiya xatosi (Maydonlar to'ldirilmagan)."
+
+# ==============================================================================
+# Components (Xavfsizlik sxemalari va Model Schemas)
+# ==============================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+      description: |
+        `/api/v1/auth/token` dan olingan 24 soatlik Bearer Access Token.
+        
+        **Foydalanish tartibi:**
+        Ushbu maydonga tokenni kiriting (masalan: `151|TzYR2ZTebj9D8JKikPOZXfMU3RMiX3biNpR8gp41adc17c41`).
+        *(Eslatma: 'Bearer ' so'zini yozish shart emas, lekin yozsangiz ham tizim avtomatik tozalab qabul qiladi).*
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: |
+        HTTP Basic Autentifikatsiya (Token olish uchun: `POST /api/v1/auth/token`).
+        Username: `client_id`, Password: `client_secret`.
+    ExternalMasterKeyAuth:
+      type: apiKey
+      in: header
+      name: X-External-Key
+      description: "Zaxira master API kaliti (X-External-Key)."
+
+  schemas:
+    TokenResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        token_type:
+          type: string
+          example: Bearer
+        access_token:
+          type: string
+          example: "141|ueTM4J5LnaHasGykLOEXNuTlCUcd7DJUGnM1P2B284c15e24"
+        expires_in:
+          type: integer
+          example: 86400
+        expires_at:
+          type: string
+          format: date-time
+          example: "2026-10-21T19:40:00+05:00"
+        client:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            name:
+              type: string
+              example: "B2B Demo Bank Client"
+            client_id:
+              type: string
+              example: "clnt_demo_b2b_client_2026"
+            rate_limit_per_minute:
+              type: integer
+              example: 300
+
+    VerifyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        is_match:
+          type: boolean
+          example: true
+          description: "Rasm pasport egasiga mos kelganligi (True / False)."
+        similarity_percentage:
+          type: number
+          example: 91.4
+          description: "Foiz hisobidagi biometrik o'xshashlik."
+        similarity_distance:
+          type: number
+          example: 0.184
+          description: "Kosinus masofasi (0.40 dan kichik bo'lishi shart)."
+        message:
+          type: string
+          example: "Shaxs muvaffaqiyatli tasdiqlandi. Jonli yuz pasport fotosuratiga to'liq mos keldi."
+        data:
+          type: object
+          description: "Tasdiqlangan fuqaroning davlat pasport bazasidagi ma'lumotlari"
+          properties:
+            full_name:
+              type: string
+              example: "ALIEV VALI VALIYEVICH"
+            pinfl:
+              type: string
+              example: "31505951230018"
+            document:
+              type: string
+              example: "AA1234567"
+            birth_date:
+              type: string
+              example: "1995-05-15"
+            doc_give_place:
+              type: string
+              example: "TOSHKENT SH. CHILONZOR TUMANI IIB"
+
+    ApiErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        is_match:
+          type: boolean
+          example: false
+        reason:
+          type: string
+          example: FACE_MISMATCH
+        message:
+          type: string
+          example: "Jonli rasm pasportdagi fotosuratga mos kelmadi."
+        detail:
+          type: string
+          example: "Biometrik o'xshashlik yetarli emas (28.5%)."

@@ -1,38 +1,68 @@
 services:
   db:
     image: ankane/pgvector:latest
+    container_name: faceidia-db
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: face_recognition
+      POSTGRES_USER: ${DB_USERNAME:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_DATABASE:-face_recognition}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: faceidia-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-FaceID_Redis_Secure_Pass_2026!}
+    command: redis-server --save 300 10 --appendonly yes --appendfsync everysec --maxmemory 2gb --maxmemory-policy allkeys-lru --loglevel warning --requirepass ${REDIS_PASSWORD:-FaceID_Redis_Secure_Pass_2026!}
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD:-FaceID_Redis_Secure_Pass_2026!}\" ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   backend:
     build:
       context: ./backend
     container_name: faceidia-backend
+    volumes:
+      - ./backend:/app
     environment:
-      # Connects to the db container
-      DATABASE_URL: postgres://user:password@db:5432/face_recognition
+      INTERNAL_AI_SECRET: ${INTERNAL_AI_SECRET:-faceidia_internal_secret_token_2026}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       - db
     restart: unless-stopped
 
-  frontend:
+  laravel:
     build:
-      context: ./frontend
-    container_name: faceidia-frontend
-    ports:
-      - "80:80"  # Access frontend on http://localhost
-    depends_on:
-      - backend
+      context: ./backend-laravel
+      dockerfile: Dockerfile
+    container_name: faceidia-laravel
     restart: unless-stopped
+    ports:
+      - "8080:8080"
+    command: php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080 --admin-port=2019
+    env_file:
+      - .env
+    volumes:
+      - ./backend-laravel:/var/www/html
+      - ./.env:/var/www/html/.env
+    depends_on:
+      - db
+      - backend
+      - redis
 
 volumes:
   postgres_data:
+  redis_data:
