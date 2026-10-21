@@ -165,18 +165,16 @@ echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled
 #### 5. Foydali Redis CLI Buyruqlari
 ```bash
 # 1. Redis bilan aloqani tekshirish (Ping)
-docker compose exec redis redis-cli --no-auth-warning -a "${REDIS_PASSWORD:-FaceID_Redis_Secure_Pass_2026!}" ping
-# yoki to'g'ridan-to'g'ri:
-docker exec faceidia-redis redis-cli --no-auth-warning -a 'FaceID_Redis_Secure_Pass_2026!' ping
+docker compose exec redis redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping
 
 # 2. Xotira sarfi va xotira boshqaruvi (Memory & Policy)
-docker exec faceidia-redis redis-cli --no-auth-warning -a 'FaceID_Redis_Secure_Pass_2026!' info memory
+docker compose exec redis redis-cli --no-auth-warning -a "$REDIS_PASSWORD" info memory
 
 # 3. Keshdagi kalitlar sonini tekshirish (DB bo'yicha)
-docker exec faceidia-redis redis-cli --no-auth-warning -a 'FaceID_Redis_Secure_Pass_2026!' info keyspace
+docker compose exec redis redis-cli --no-auth-warning -a "$REDIS_PASSWORD" info keyspace
 
 # 4. Real vaqt rejimida barcha so'rovlar oqimini kuzatish (Debug / Monitor)
-docker exec faceidia-redis redis-cli --no-auth-warning -a 'FaceID_Redis_Secure_Pass_2026!' monitor
+docker compose exec redis redis-cli --no-auth-warning -a "$REDIS_PASSWORD" monitor
 
 # 5. Keshni xavfsiz tozalash (Faqat DB 0 keshini)
 docker compose exec laravel php artisan cache:clear
@@ -319,8 +317,7 @@ EGOV_AUTH_PASSWORD="your_gateway_password"
 
 Admin boshqaruv paneli:
 * URL: `https://api.yourdomain.uz/admin`
-* Boshlang'ich login: `admin@faceidia.uz`
-* Boshlang'ich parol: `FaceID_Admin_2026!` *(Productionda darhol o'zgartiring)*
+* Kirish: Serverni ishga tushirishda `.env` faylidagi `ADMIN_DEFAULT_EMAIL` va `ADMIN_DEFAULT_PASSWORD` (yoki `./setup-env.sh` tomonidan generatsiya qilingan maxfiy parametrlar) orqali amalga oshiriladi.
 
 Admin quyidagi imkoniyatlarga ega:
 - Tashqi API so'rovlari va biometrik tekshiruvlar loglarini kuzatish.

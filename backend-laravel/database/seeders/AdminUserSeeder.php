@@ -15,7 +15,7 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         $adminEmail = env('ADMIN_DEFAULT_EMAIL', 'admin@faceidia.uz');
-        $adminPassword = env('ADMIN_DEFAULT_PASSWORD', 'FaceID_Admin_2026!');
+        $adminPassword = env('ADMIN_DEFAULT_PASSWORD') ?: \Illuminate\Support\Str::random(24);
         $adminName = env('ADMIN_DEFAULT_NAME', 'Bosh Administrator');
 
         MoonshineUser::updateOrCreate(
