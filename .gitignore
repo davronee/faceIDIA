@@ -51,7 +51,8 @@ faceIDIA_project.zip
 # Backups
 backups/
 
-# Mobile build packages
+# Mobile client application (separate repository)
+mobile/
 *.ipa
 *.apk
 *.aab

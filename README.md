@@ -14,10 +14,10 @@
 **Enterprise Face ID System** — bu davlat tashkilotlari, banklar va yirik korporatsiyalar uchun mo'ljallangan yuqori xavfsizlikka ega biometrik identifikatsiya platformasi.
 
 Tizim quyidagi ko'p qatlamli (Multi-Tier) mikroservis arxitekturasi asosida ishlaydi:
-1. **Mijoz qismi (Client):** **Native Android (Kotlin)** va **Flutter iOS/Android** mobil ilovalari (kamera orqali yuzni suratga oladi va REST API ga yuboradi).
+1. **Mijoz qatlamlari (REST API Clients):** Tashqi axborot tizimlari, banklar, davlat portallari va turniketlar (REST API orqali biometrik so'rovlarni yuboradi).
 2. **API Gateway & Admin Panel (Laravel 13 + FrankenPHP Octane):**
-   - Mobil ilovalar uchun yuqori unumdorlikdagi REST API (`/api/register`, `/api/recognize`, `/api/user/me`).
-   - Sanctum token autentifikatsiyasi va `X-App-Key` xavfsizligi.
+   - Tashqi tizimlar va hamkorlar uchun yuqori unumdorlikdagi REST API (`/api/v1/auth/token`, `/api/v1/external/verify`, `/api/health`).
+   - HTTP Basic Auth orqali 24 soatlik Bearer token olish va Sanctum xavfsizligi.
    - **MoonShine Admin Panel** (`/admin`) — arizalarni ko'rib chiqish, tasdiqlash/rad etish, biometrik fotosuratlarni xavfsiz ko'rish va xavfsizlik audit jurnali.
 3. **Sun'iy Intellekt va Jonlilikni Tekshirish Servisi (FastAPI + InsightFace + MiniFASNet):**
    - 512-o'lchamli biometrik neyron vektorlarni ajratib olish (`buffalo_sc`).
@@ -98,7 +98,7 @@ Tizim mavjud yirik axborot tizimiga integratsiya qilinayotgani va **hozirda 3 mi
 4. **Redis 7 HA In-Memory Klasteri (2 ta Node + Redis Sentinel):** Har biri 8 vCPU, **32 GB RAM** (Stateless Octane sessiyalari, tokenlar keshi, taqsimlangan rate-limiter hisoblagichlari va asinxron navbatlarni sub-millisekundda uzatish).
 5. **Ma'lumotlar Bazasi Qatlami (Master + Read Replica):**
    - **PostgreSQL Master Node:** 32 vCPU, **128 GB RAM**, 2 TB Enterprise NVMe SSD (Ro'yxatdan o'tish va admin boshqaruvi uchun).
-   - **PostgreSQL Read Replica Node:** 32 vCPU, **128 GB RAM**, 2 TB Enterprise NVMe SSD (Barcha mobil ilovalardan kelayotgan `/api/recognize` qidiruv yuklamasi replika bazaga yo'naltiriladi).
+   - **PostgreSQL Read Replica Node:** 32 vCPU, **128 GB RAM**, 2 TB Enterprise NVMe SSD (Barcha tashqi tizimlardan kelayotgan yuqori yuklamali biometrik qidiruv so'rovlari replika bazaga yo'naltiriladi).
 6. **Suratlar Uchun Object Storage (S3 / MinIO):** 10 million shaxsning 1.5 TB suratlarini alohida S3-mos saqlagichda saqlash tavsiya etiladi.
 
 ---
@@ -219,107 +219,122 @@ chmod +x deploy.sh backup.sh init-ssl.sh
 
 ---
 
-## 📱 Android (Native Kotlin) Jamoasi Uchun
+## 🏢 Tashqi B2B Biometrik REST API Integratsiyasi
 
-Mobil dasturchilar uchun to'liq integratsiya qo'llanmasi, Retrofit interfeyslari, OkHttp interceptorlari va xatolik kodlari ro'yxati tayyorlangan: **[docs/KOTLIN_ANDROID_INTEGRATION.md](docs/KOTLIN_ANDROID_INTEGRATION.md)**
-
-### Asosiy Mobil API Endpoints:
-| Method | Endpoint | Tavsif | Headers |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/health` | Server va DB holatini tekshirish | - |
-| `POST` | `/api/register` | Yangi fuqaroni ro'yxatdan o'tkazish | `X-App-Key` |
-| `POST` | `/api/recognize` | Yuz orqali autentifikatsiya (Login) | `X-App-Key` |
-| `GET` | `/api/user/me` | Foydalanuvchi profilini olish | `Authorization: Bearer <token>` |
-| `GET` | `/api/user/photo` | Shaxsiy fotosurat oqimi | `Authorization: Bearer <token>` |
-| `POST` | `/api/user/logout` | Sessiyani bekor qilish (Logout) | `Authorization: Bearer <token>` |
-
----
-
-## 🇺🇿 Davlat e-Gov Pasport (GCP) orqali Birinchi Marta Biometrik Kirish
-
-Birinchi marta tizimga kirayotgan (sessiyasi mavjud bo'lmagan) fuqarolar uchun avtomatlashtirilgan davlat GCP shlyuzi integratsiyasi yo'lga qo'yilgan:
-
-### 🔄 Ishlash Zanjiri (Workflow):
-1. **Pasport kiritish:** Fuqaro mobil ilovada Pasport seriya/raqami (`document`: `AA0000000`) va Tug'ilgan sanasini (`birthDate`: `2000-12-31`) kiritadi.
-2. **Dynamic Basic Auth Token olish:** Backend `EGOV_AUTH_USERNAME` va `EGOV_AUTH_PASSWORD` orqali tashqi shlyuzga (`POST /auth/token`) Basic Auth bilan murojaat qilib, `access_token` oladi. Token avtomatik ravishda Redis-ga (TTL: ~50 daqiqa) keshlanadi. Token muddati o'tsa (401), tizim avtomatik tarzda keshni tozalab, yangi token bilan qayta so'rov yuboradi.
-3. **e-Gov GCP so'rovi:** Olingan Bearer token bilan davlat shlyuziga (`POST /egov/passport-gcp-document-birthdate`) so'rov yuboriladi va fuqaroning JSHSHIR (PINFL), F.I.Sh hamda fotosurati (Base64) olinadi.
-4. **Face ID Kamera skanerlash:** Pasport tasdiqlangach, kamera ochiladi va jonli selfi kadri olinadi.
-5. **1:1 Biometrik solishtirish:** Jonli selfi va pasportdagi fotosurat InsightFace (512-d embeddings) va MiniFASNet anti-spoofing orqali solishtiriladi (`threshold <= 0.40`).
-6. **Bazada to'liq saqlash va Kirish:** Yuz mos kelsa (`is_match: true`), fuqaroning barcha pasport ma'lumotlari (`pinfl`, `doc_seria`, `doc_number`, `birth_date`, `nationality`, `citizenship`, `doc_give_place`, pasport fotosurati va to'liq `egov_data` JSONB) PostgreSQL `persons` jadvaliga yoziladi. Shuningdek, har bir e-Gov so'rovi audit uchun `egov_passport_logs` jadvaliga muhrlanadi. Fuqaroga Sanctum Bearer token beriladi va tizimga to'liq kiritiladi.
-
-### ⚙️ .env Sozlamalari (eGov Gateway):
-```env
-EGOV_PASSPORT_BASE_URL="https://gateway.imv.uz/api/v1"
-EGOV_AUTH_ENDPOINT="/auth/token"
-EGOV_PASSPORT_ENDPOINT="/egov/passport-gcp-document-birthdate"
-EGOV_AUTH_USERNAME="moliyachi_faceid"
-EGOV_AUTH_PASSWORD="your_gateway_password"
-EGOV_PASSPORT_TOKEN="" # (Zaxira statik token)
-```
-
-### e-Gov API Endpoints:
-| Method | Endpoint | Tavsif | Parametrlar                                              |
-| :--- | :--- | :--- |:---------------------------------------------------------|
-| `POST` | `/api/egov/passport-verify` | e-Gov GCP bazasidan pasport va fotosuratni olish | `{ "document": "AD0000000", "birthDate": "2001-12-31" }` |
-| `POST` | `/api/egov/face-match` | Jonli yuzni pasportdagi rasm bilan 1:1 solishtirish va avtorizatsiya | `file` (kamera), `session_id`                            |
-
----
-
-## 🏢 Tashqi Tizimlar, Banklar va Turniketlar Uchun (External B2B REST API)
-
-Tashqi axborot tizimlari (HR dasturlari, bank skanerlari, davlat portallari, turniket va nazorat kameralari) to'g'ridan-to'g'ri integratsiya qilishi uchun maxsus **B2B External API** qatlami taqdim etilgan:
+Ushbu REST API tashqi hamkorlar (Banklar, to'lov tashkilotlari, davlat portallari va korxonalar) uchun fuqaroning pasport ma'lumotlari va jonli fotosuratini davlat e-Gov GCP bazasidagi fotosurat bilan 1:1 solishtirish uchun mo'ljallangan.
 
 ### 📖 Interaktiv Swagger Hujjatlari:
 - **Lokal muhit:** [http://localhost:8080/docs](http://localhost:8080/docs) (yoki [http://localhost:8080/api/docs](http://localhost:8080/api/docs))
 - **Production muhit:** `https://api.yourdomain.uz/docs`
 - **OpenAPI 3.0 Spetsifikatsiyasi:** [http://localhost:8080/docs/openapi.yaml](http://localhost:8080/docs/openapi.yaml)
 
-### Tashqi API Endpoints:
-| Method | Endpoint | Tavsif | Headers |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/external/verify` | **1:1 Solishtirish:** Yuz surati ko'rsatilgan shaxsga (`person_id` yoki `phone_number`) mosligini tekshirish | `X-External-Key` |
-| `POST` | `/api/v1/external/identify` | **1:N Qidirish:** Turniket/kamera kadri bo'yicha bazadan 1-5ms da shaxsni topish | `X-External-Key` |
-| `POST` | `/api/v1/external/check-liveness` | **Anti-Spoofing:** Suratning jonliligini tekshirish (Video/qog'oz hujumlarini aniqlash) | `X-External-Key` |
-| `GET` | `/api/v1/external/persons/{id}` | Shaxsning biometrik tasdiqlanganlik holati va profilini olish | `X-External-Key` |
+---
 
-#### Namuna cURL (1:1 Shaxsni solishtirish):
+### 🔄 Ishlash Zanjiri (2 Qadam):
+
+#### 1-Qadam: Bearer Access Token olish
+Tashqi hamkor admin panel bergan `client_id` va `client_secret` orqali HTTP Basic Auth yordamida 24 soatlik Bearer Token oladi:
+* **Endpoint:** `POST /api/v1/auth/token`
+* **Avtorizatsiya:** `Authorization: Basic base64(client_id:client_secret)`
+
 ```bash
-curl -X POST http://localhost:8080/api/v1/external/verify \
-  -H "X-External-Key: faceidia_external_b2b_secret_key_2026" \
-  -F "person_id=1" \
-  -F "file=@/path/to/face.jpg"
+curl -X POST http://localhost:8080/api/v1/auth/token \
+  -u "client_id:client_secret" \
+  -H "Accept: application/json"
 ```
 
-#### Namuna cURL (Turniket / 1:N Identifikatsiya):
+**Muvaffaqiyatli Javob (200 OK):**
+```json
+{
+  "status": "success",
+  "access_token": "1|abcdef123456...",
+  "token_type": "Bearer",
+  "expires_in": 86400
+}
+```
+
+#### 2-Qadam: Biometrik Verifikatsiya (1:1 Solishtirish)
+Olingan Bearer token bilan fuqaroning pasport seriya/raqami (`passport`), tug'ilgan sanasi (`birth_date`) va jonli fotosurati (`photo` Base64) yuboriladi:
+* **Endpoint:** `POST /api/v1/external/verify`
+* **Avtorizatsiya:** `Authorization: Bearer <TOKEN>`
+
 ```bash
-curl -X POST http://localhost:8080/api/v1/external/identify \
-  -H "X-External-Key: faceidia_external_b2b_secret_key_2026" \
-  -F "file=@/path/to/turnstile_face.jpg"
+curl -X POST http://localhost:8080/api/v1/external/verify \
+  -H "Authorization: Bearer 1|abcdef123456..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passport": "AA1234567",
+    "birth_date": "1995-08-15",
+    "photo": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+  }'
+```
+
+**Muvaffaqiyatli Javob (200 OK — Shaxs tasdiqlandi):**
+```json
+{
+  "status": "success",
+  "is_match": true,
+  "confidence": 0.982,
+  "similarity": 0.98,
+  "distance": 0.18,
+  "threshold": 0.4,
+  "person": {
+    "full_name": "ISMOILOV ANVAR BOTIROVICH",
+    "pinfl": "31508950000000",
+    "passport": "AA1234567",
+    "birth_date": "1995-08-15"
+  },
+  "message": "Fuqaro shaxsi muvaffaqiyatli tasdiqlandi"
+}
+```
+
+Agar yuz mos kelmasa:
+```json
+{
+  "status": "fail",
+  "is_match": false,
+  "confidence": 0.312,
+  "distance": 0.69,
+  "threshold": 0.4,
+  "message": "Fuqaroning yuzi pasportdagi fotosuratga mos kelmadi"
+}
 ```
 
 ---
 
-##  Admin Panel (MoonShine)
+## ⚙️ Davlat e-Gov GCP Integratsiya Sozlamalari (.env)
 
-Admin panelga kirish:
+Tizim davlat GCP shlyuziga avtomatlashtirilgan tarzda ulanadi:
+```env
+EGOV_PASSPORT_BASE_URL="https://gateway.imv.uz/api/v1"
+EGOV_AUTH_ENDPOINT="/auth/token"
+EGOV_PASSPORT_ENDPOINT="/egov/passport-gcp-document-birthdate"
+EGOV_AUTH_USERNAME="your_gateway_username"
+EGOV_AUTH_PASSWORD="your_gateway_password"
+```
+
+---
+
+## 🛡️ Admin Panel (MoonShine)
+
+Admin boshqaruv paneli:
 * URL: `https://api.yourdomain.uz/admin`
 * Boshlang'ich login: `admin@faceidia.uz`
 * Boshlang'ich parol: `FaceID_Admin_2026!` *(Productionda darhol o'zgartiring)*
 
 Admin quyidagi imkoniyatlarga ega:
-- Yangi tushgan arizalarni filtrlab ko'rish (Kutilmoqda, Tasdiqlangan, Rad etilgan).
+- Tashqi API so'rovlari va biometrik tekshiruvlar loglarini kuzatish.
+- Muvaffaqiyatsiz (`FAILED`) so'rovlarni alohida filtrlab sabablarini ko'rish (masalan, pasport topilmadi, yuz mos kelmadi, xato token).
 - Biometrik fotosuratlarni xavfsiz (fayl yo'lini oshkor qilmagan holda) ko'rish.
-- Arizalarni bir tugma bilan tasdiqlash yoki rad etish sababini kiritish.
-- Anti-spoofing xujumlari va tizimga kirish audit loglarini kuzatish.
+- Anti-spoofing hujumlari va tizim xavfsizlik jurnali.
 - To'g'ridan-to'g'ri interaktiv Swagger API hujjatlariga o'tish.
 
 ---
 
-## ️ Zaxira Nusxalash (Backups)
+## 💾 Zaxira Nusxalash (Backups)
 
 Avtomatlashtirilgan zaxiralash skripti:
 ```bash
 ./backup.sh
 ```
 Ushbu buyruq PostgreSQL bazasini (`.sql.gz`) va biometrik suratlar arxivini (`.tar.gz`) `backups/` papkasiga saqlaydi hamda 7 kundan eski nusxalarni avtomatik o'chiradi (Cron ga qo'shish tavsiya etiladi: `0 3 * * * /path/to/backup.sh`).
->>>>>>> d111791 (feat(b2b): implement B2B biometrics API, Flutter mobile client, admin audit logs, and production DevOps setup)
