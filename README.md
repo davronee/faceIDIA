@@ -18,7 +18,7 @@ Tizim quyidagi ko'p qatlamli (Multi-Tier) mikroservis arxitekturasi asosida ishl
 2. **API Gateway & Admin Panel (Laravel 13 + FrankenPHP Octane):**
    - Tashqi tizimlar va hamkorlar uchun yuqori unumdorlikdagi REST API (`/api/v1/auth/token`, `/api/v1/external/verify`, `/api/health`).
    - HTTP Basic Auth orqali 24 soatlik Bearer token olish va Sanctum xavfsizligi.
-   - **MoonShine Admin Panel** (`/admin`) — arizalarni ko'rib chiqish, tasdiqlash/rad etish, biometrik fotosuratlarni xavfsiz ko'rish va xavfsizlik audit jurnali.
+   - **MoonShine Admin Panel** (`/admin`) — B2B tashqi API so'rovlari loglari, biometrik verifikatsiyalar monitoringi, audit jurnali va xavfsizlik nazorati.
 3. **Sun'iy Intellekt va Jonlilikni Tekshirish Servisi (FastAPI + InsightFace + MiniFASNet):**
    - 512-o'lchamli biometrik neyron vektorlarni ajratib olish (`buffalo_sc`).
    - Passiv Anti-Spoofing (ekrandan video qo'yish yoki qog'ozdagi rasmni aniqlash).
@@ -228,16 +228,28 @@ Ushbu REST API tashqi hamkorlar (Banklar, to'lov tashkilotlari, davlat portallar
 
 ---
 
+### 📋 Faol REST API Endpoints Ro'yxati:
+
+| Method | Endpoint | Tavsif | Avtorizatsiya |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/health` | Tizim, kesh va PostgreSQL holatini tekshirish | Ochiq |
+| `POST` | `/api/v1/auth/token` | 24 soatlik Bearer Access Token olish | Basic Auth / JSON (`client_id`, `client_secret`) |
+| `GET` | `/api/v1/auth/me` | Joriy token egasi va balans/ruxsatlarni tekshirish | `Authorization: Bearer <TOKEN>` |
+| `POST` | `/api/v1/auth/revoke` | Faol Bearer tokenni bekor qilish (Logout) | `Authorization: Bearer <TOKEN>` |
+| `POST` | `/api/v1/external/verify` | **Asosiy B2B API:** Pasport va yuz fotosuratini 1:1 taqqoslash | `Authorization: Bearer <TOKEN>` |
+
+---
+
 ### 🔄 Ishlash Zanjiri (2 Qadam):
 
 #### 1-Qadam: Bearer Access Token olish
-Tashqi hamkor admin panel bergan `client_id` va `client_secret` orqali HTTP Basic Auth yordamida 24 soatlik Bearer Token oladi:
+Tashqi tizim admin panel taqdim etgan `client_id` va `client_secret` orqali HTTP Basic Auth yordamida 24 soatlik Bearer Token oladi:
 * **Endpoint:** `POST /api/v1/auth/token`
-* **Avtorizatsiya:** `Authorization: Basic base64(client_id:client_secret)`
+* **Avtorizatsiya:** `Authorization: Basic <BASE64_CREDENTIALS>` (yoki `-u "<CLIENT_ID>:<CLIENT_SECRET>"`)
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/token \
-  -u "client_id:client_secret" \
+  -u "<CLIENT_ID>:<CLIENT_SECRET>" \
   -H "Accept: application/json"
 ```
 
@@ -245,7 +257,7 @@ curl -X POST http://localhost:8080/api/v1/auth/token \
 ```json
 {
   "status": "success",
-  "access_token": "1|abcdef123456...",
+  "access_token": "<BEARER_TOKEN>",
   "token_type": "Bearer",
   "expires_in": 86400
 }
@@ -254,16 +266,16 @@ curl -X POST http://localhost:8080/api/v1/auth/token \
 #### 2-Qadam: Biometrik Verifikatsiya (1:1 Solishtirish)
 Olingan Bearer token bilan fuqaroning pasport seriya/raqami (`passport`), tug'ilgan sanasi (`birth_date`) va jonli fotosurati (`photo` Base64) yuboriladi:
 * **Endpoint:** `POST /api/v1/external/verify`
-* **Avtorizatsiya:** `Authorization: Bearer <TOKEN>`
+* **Avtorizatsiya:** `Authorization: Bearer <BEARER_TOKEN>`
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/external/verify \
-  -H "Authorization: Bearer 1|abcdef123456..." \
+  -H "Authorization: Bearer <BEARER_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
     "passport": "AA1234567",
     "birth_date": "1995-08-15",
-    "photo": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+    "photo": "data:image/jpeg;base64,<BASE64_IMAGE_DATA>"
   }'
 ```
 
@@ -277,8 +289,8 @@ curl -X POST http://localhost:8080/api/v1/external/verify \
   "distance": 0.18,
   "threshold": 0.4,
   "person": {
-    "full_name": "ISMOILOV ANVAR BOTIROVICH",
-    "pinfl": "31508950000000",
+    "full_name": "<FUQARO_F_I_SH>",
+    "pinfl": "<JSHSHIR_PINFL>",
     "passport": "AA1234567",
     "birth_date": "1995-08-15"
   },
@@ -286,7 +298,7 @@ curl -X POST http://localhost:8080/api/v1/external/verify \
 }
 ```
 
-Agar yuz mos kelmasa:
+**Rad etilgan Javob (200 OK — Yuz mos kelmadi):**
 ```json
 {
   "status": "fail",
@@ -307,8 +319,8 @@ Tizim davlat GCP shlyuziga avtomatlashtirilgan tarzda ulanadi:
 EGOV_PASSPORT_BASE_URL="https://gateway.imv.uz/api/v1"
 EGOV_AUTH_ENDPOINT="/auth/token"
 EGOV_PASSPORT_ENDPOINT="/egov/passport-gcp-document-birthdate"
-EGOV_AUTH_USERNAME="your_gateway_username"
-EGOV_AUTH_PASSWORD="your_gateway_password"
+EGOV_AUTH_USERNAME="<EGOV_GATEWAY_USERNAME>"
+EGOV_AUTH_PASSWORD="<EGOV_GATEWAY_PASSWORD>"
 ```
 
 ---
@@ -317,14 +329,14 @@ EGOV_AUTH_PASSWORD="your_gateway_password"
 
 Admin boshqaruv paneli:
 * URL: `https://api.yourdomain.uz/admin`
-* Kirish: Serverni ishga tushirishda `.env` faylidagi `ADMIN_DEFAULT_EMAIL` va `ADMIN_DEFAULT_PASSWORD` (yoki `./setup-env.sh` tomonidan generatsiya qilingan maxfiy parametrlar) orqali amalga oshiriladi.
+* Kirish: Serverni sozlashda `.env` faylidagi `ADMIN_DEFAULT_EMAIL` va `ADMIN_DEFAULT_PASSWORD` (yoki `./setup-env.sh` tomonidan generatsiya qilingan parametrlar) orqali amalga oshiriladi.
 
-Admin quyidagi imkoniyatlarga ega:
-- Tashqi API so'rovlari va biometrik tekshiruvlar loglarini kuzatish.
-- Muvaffaqiyatsiz (`FAILED`) so'rovlarni alohida filtrlab sabablarini ko'rish (masalan, pasport topilmadi, yuz mos kelmadi, xato token).
+Admin panel imkoniyatlari:
+- Barcha B2B API chaqiruvlari va biometrik tekshiruvlar loglarini real vaqt rejimida kuzatish.
+- Muvaffaqiyatsiz (`FAILED`) urinishlarni alohida filtrlab sabablarini ko'rish (masalan: pasport topilmadi, yuz mos kelmadi, ruxsatsiz token).
 - Biometrik fotosuratlarni xavfsiz (fayl yo'lini oshkor qilmagan holda) ko'rish.
-- Anti-spoofing hujumlari va tizim xavfsizlik jurnali.
-- To'g'ridan-to'g'ri interaktiv Swagger API hujjatlariga o'tish.
+- Anti-spoofing hujumlari va tizim xavfsizlik audit jurnali.
+- Interaktiv Swagger API hujjatlariga to'g'ridan-to'g'ri o'tish.
 
 ---
 
