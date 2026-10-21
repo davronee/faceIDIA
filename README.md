@@ -204,16 +204,49 @@ docker compose up -d --build
 # - Healthcheck:    http://localhost:8080/api/health
 ```
 
-### 2. Ishlab chiqarish muhiti (Production Deployment)
-```bash
-# 1. Production muhit sozlamalarini tayyorlash
-cp .env.production.example .env.production
-nano .env.production # Parollar va APP_KEY ni o'zgartiring
+### 2. Ishlab chiqarish muhitiga o'rnatish va ishga tushirish (Production Deployment)
 
-# 2. Avtomatlashtirilgan deploy skriptini yurgazish
-chmod +x deploy.sh backup.sh init-ssl.sh
+#### 🚀 1-Qadam: Repozitoriyani serverga yuklab olish
+```bash
+git clone https://github.com/davronee/faceIDIA.git
+cd faceIDIA
+```
+
+#### ⚡ 2-Qadam: Avtomatlashtirilgan Deploy skriptini ishga tushirish
+Yangi serverda faqat bitta buyruq beriladi:
+```bash
+chmod +x deploy.sh setup-env.sh init-ssl.sh backup.sh
 ./deploy.sh
 ```
+
+#### ⚙️ Ushbu buyruq ishga tushganda serverda avtomatik quyidagi amallar ketma-ket bajariladi:
+1. **Muhit parametrlarini avtomatik sozlash (`setup-env.sh`):**
+   - Agar serverda `.env` fayli mavjud bo'lmasa, skript o'zi avtomatik ishga tushadi.
+   - Barcha maxfiy parollarni (PostgreSQL, Redis, AI Secret, MoonShine Admin) kriptografik kuchli tasodifiy stringlar bilan avtomatik generatsiya qiladi.
+   - Domen manzili va e-Gov GCP shlyuz ma'lumotlarini so'raydi.
+   - `.env` faylini `chmod 600` qilib qulflaydi va terminalga Admin panel login va parolini bir martalik xavfsiz ko'rinishda chiqarib beradi.
+2. **Xavfsiz SSL sertifikatlarini sozlash (`init-ssl.sh`):**
+   - Nginx uchun Diffie-Hellman parametrlarini (`dhparam.pem`) va SSL sertifikatlarini tayyorlaydi.
+3. **Docker Production konteynerlarini qurish va ko'tarish:**
+   - `docker compose -f docker-compose.prod.yml up -d --build` orqali Nginx, FrankenPHP Octane, FastAPI AI, PostgreSQL pgvector, Redis va Queue Worker konteynerlarini orkestratsiya qiladi.
+4. **Baza migratsiyalari va Admin foydalanuvchisini yaratish:**
+   - `php artisan migrate --force` — PostgreSQL jadvallari va pgvector HNSW indekslarini to'liq tekshiradi va yangilaydi.
+   - `php artisan db:seed --class=AdminUserSeeder --force` — generatsiya qilingan login va parol bilan MoonShine Admin hisobini bazada ochadi.
+5. **Yuqori tezlik va kesh optimizatsiyasi:**
+   - Konfiguratsiya, routelar va shablon keshlarini faollashtiradi (`config:cache`, `route:cache`, `view:cache`).
+   - FrankenPHP Octane workerlarini qayta yuklaydi (`octane:reload`).
+6. **Avtomatik tizim tekshiruvi (Healthcheck):**
+   - Ichki `http://localhost:8080/api/health` so'rovi orqali tizim, baza va AI servisining to'liq ishga tushganligini tasdiqlaydi.
+
+---
+
+#### 🔄 Keyingi yangilanishlarni deploy qilish (Update):
+Keyinchalik loyihaga yangi o'zgarishlar kiritilganda serverda quyidagi buyruqlar beriladi:
+```bash
+git pull origin master
+./deploy.sh
+```
+*(Ushbu buyruq mavjud `.env` va bazadagi ma'lumotlarga ziyon yetkazmasdan, konteynerlarni nol uzilish bilan yangi kodga o'tkazadi).*
 
 ---
 
