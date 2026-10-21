@@ -66,7 +66,7 @@ class EgovPassportController extends Controller
                     'status' => 'success',
                     'raw_response' => $passportData,
                     'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent() ?? 'Flutter Mobile',
+                    'user_agent' => $request->userAgent() ?? 'eGov Biometric Client',
                     'created_at' => now(),
                 ]);
             } catch (Exception $logEx) {
@@ -107,18 +107,20 @@ class EgovPassportController extends Controller
                     'status' => 'failed',
                     'error_message' => $e->getMessage(),
                     'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent() ?? 'Flutter Mobile',
+                    'user_agent' => $request->userAgent() ?? 'eGov Biometric Client',
                     'created_at' => now(),
                 ]);
             } catch (Exception $logEx) {
                 // Ignore log save failure on already failed request
+            }
+
             try {
                 BiometricAuditLog::create([
                     'person_name' => $validated['document'] ?? 'Noma\'lum fuqaro',
                     'action' => 'egov_passport_failed',
                     'status' => 'failed',
                     'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent() ?? 'Flutter Mobile',
+                    'user_agent' => $request->userAgent() ?? 'eGov Biometric Client',
                     'details' => "eGov Pasport qidirishda xatolik: " . $e->getMessage(),
                 ]);
             } catch (Exception $logEx) {
@@ -364,7 +366,7 @@ class EgovPassportController extends Controller
                     'action' => 'egov_face_mismatch',
                     'status' => 'warning',
                     'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent() ?? 'Flutter Mobile',
+                    'user_agent' => $request->userAgent() ?? 'eGov Biometric Client',
                     'details' => "eGov Yuz mos kelmadi yoki biometrik ogohlantirish ({$e->getReason()}): " . $e->getMessage(),
                 ]);
             } catch (Exception $logEx) {}
@@ -384,7 +386,7 @@ class EgovPassportController extends Controller
                     'action' => 'egov_face_mismatch',
                     'status' => 'failed',
                     'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent() ?? 'Flutter Mobile',
+                    'user_agent' => $request->userAgent() ?? 'eGov Biometric Client',
                     'details' => "eGov Face tizim xatosi: " . $e->getMessage(),
                 ]);
             } catch (Exception $logEx) {}
