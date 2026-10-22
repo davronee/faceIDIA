@@ -1,4 +1,4 @@
-FROM php:8.3-cli-alpine
+FROM php:8.3.36-cli-alpine
 
 # Install system dependencies for PHP extensions & FrankenPHP
 RUN apk add --no-cache \
@@ -44,6 +44,15 @@ RUN { \
         echo 'opcache.revalidate_freq=0'; \
     } > /usr/local/etc/php/conf.d/opcache-recommended.ini
 
+# PHP Security Hardening (Mitigations for CVE-2026-109618 & CVE-2026-109619 "php2shell")
+RUN { \
+        echo 'session.upload_progress.enabled=0'; \
+        echo 'post_max_size=25M'; \
+        echo 'upload_max_filesize=20M'; \
+        echo 'memory_limit=-1'; \
+        echo 'expose_php=0'; \
+    } > /usr/local/etc/php/conf.d/security.ini
+
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -74,4 +83,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080 --admin-port=2019"]
+CMD ["sh", "-c", "php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080 --admin-port=2019 --max-requests=500"]

@@ -1,6 +1,6 @@
 # Enterprise Face ID Biometric System (REST API & Admin)
 
-![PHP](https://img.shields.io/badge/PHP-8.3-777BB4.svg)
+![PHP](https://img.shields.io/badge/PHP-8.3.36_(Security_Patched)-777BB4.svg)
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20.svg)
 ![FrankenPHP](https://img.shields.io/badge/FrankenPHP-Octane-blueviolet.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
